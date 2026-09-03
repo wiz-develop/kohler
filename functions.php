@@ -1196,3 +1196,211 @@ function export_media_csv() {
     fclose($output);
     exit;
 }
+
+/**
+ * ショールームページの初期表示文言と管理画面の編集項目。
+ *
+ * 未保存の項目は会社案内 2026 の掲載内容を初期値として表示する。
+ */
+function kohler_showroom_field_definitions() {
+    return [
+        'lead_title' => [
+            'section' => '導入文',
+            'label'   => '見出し',
+            'type'    => 'text',
+            'default' => '国内ショールームのご案内',
+        ],
+        'lead_text' => [
+            'section' => '導入文',
+            'label'   => '説明文',
+            'type'    => 'textarea',
+            'rows'    => 3,
+            'default' => '実物を見て、触れて、使って。国内2拠点（大阪ショールームは改装中）でKOHLERの製品をご体験いただけます。',
+        ],
+        'tokyo_name' => [
+            'section' => '東京ショールーム',
+            'label'   => '名称',
+            'type'    => 'textarea',
+            'rows'    => 2,
+            'default' => "KOHLER TOKYO\nSHOWROOM",
+        ],
+        'tokyo_details' => [
+            'section' => '東京ショールーム',
+            'label'   => '所在地・営業情報',
+            'type'    => 'textarea',
+            'rows'    => 3,
+            'default' => "東京都港区高輪2-21-38 大野高輪ビル1F\n定休日：日・祝日・年末年始",
+        ],
+        'tokyo_link_text' => [
+            'section' => '東京ショールーム',
+            'label'   => 'リンク文言',
+            'type'    => 'text',
+            'default' => '予約制につきこちらからご予約お願い致します。',
+        ],
+        'tokyo_link_url' => [
+            'section' => '東京ショールーム',
+            'label'   => 'リンクURL',
+            'type'    => 'url',
+            'default' => 'https://jpkohler.com/contact/showroom',
+        ],
+        'aoyama_name' => [
+            'section' => '南青山ショールーム',
+            'label'   => '名称',
+            'type'    => 'textarea',
+            'rows'    => 2,
+            'default' => "KOIZUMI with KOHLER\nMINAMI-AOYAMA SHOWROOM",
+        ],
+        'aoyama_details' => [
+            'section' => '南青山ショールーム',
+            'label'   => '所在地・営業情報',
+            'type'    => 'textarea',
+            'rows'    => 4,
+            'default' => "東京都港区南青山4-24-1 FAVEUR MINAMIAOYAMA 1F\nTEL 03-6451-1473／10:00〜16:00（完全予約制）\n休館日：土・日・祝日　※東京メトロ表参道駅より徒歩7分",
+        ],
+        'aoyama_link_text' => [
+            'section' => '南青山ショールーム',
+            'label'   => 'リンク文言',
+            'type'    => 'text',
+            'default' => '詳しくはこちらをご覧ください。',
+        ],
+        'aoyama_link_url' => [
+            'section' => '南青山ショールーム',
+            'label'   => 'リンクURL',
+            'type'    => 'url',
+            'default' => 'https://www.koizumi-pb.jp/kohler-concept/',
+        ],
+        'osaka_status' => [
+            'section' => '大阪ショールーム',
+            'label'   => 'ステータス',
+            'type'    => 'text',
+            'default' => '【改装中】',
+        ],
+        'osaka_name' => [
+            'section' => '大阪ショールーム',
+            'label'   => '名称',
+            'type'    => 'text',
+            'default' => 'KOHLER OSAKA SHOWROOM',
+        ],
+        'osaka_details' => [
+            'section' => '大阪ショールーム',
+            'label'   => '所在地・営業情報',
+            'type'    => 'textarea',
+            'rows'    => 5,
+            'default' => "大阪市住之江区南港北2-1-10 ATCビル ITM棟9F\nTEL 06-6615-5432\n現在は改装中のためご見学いただけません。\n2027年中の改装完了を予定しています。",
+        ],
+        'features_title' => [
+            'section' => 'ショールームでできること',
+            'label'   => '見出し',
+            'type'    => 'text',
+            'default' => 'ショールームでできること',
+        ],
+        'features_items' => [
+            'section'     => 'ショールームでできること',
+            'label'       => '内容（1行につき1項目）',
+            'type'        => 'textarea',
+            'rows'        => 5,
+            'description' => '改行ごとに箇条書きとして表示されます。',
+            'default'     => "シャワーや水栓は実際に通水して、使い心地をご確認いただけます。\n陶器・水栓金具のカラーサンプルを取り揃え、仕上げの検討にもご活用いただけます。\nお客さまや設計事務所をご案内いただく場としてもご利用いただけます。",
+        ],
+    ];
+}
+
+function kohler_showroom_get_value($post_id, $field_name) {
+    $definitions = kohler_showroom_field_definitions();
+
+    if (!isset($definitions[$field_name])) {
+        return '';
+    }
+
+    $meta_key = '_kohler_showroom_' . $field_name;
+    if (metadata_exists('post', $post_id, $meta_key)) {
+        return (string) get_post_meta($post_id, $meta_key, true);
+    }
+
+    return $definitions[$field_name]['default'];
+}
+
+function kohler_add_showroom_meta_box($post) {
+    if (!$post || 'showroom' !== $post->post_name) {
+        return;
+    }
+
+    add_meta_box(
+        'kohler-showroom-content',
+        'ショールーム掲載内容',
+        'kohler_render_showroom_meta_box',
+        'page',
+        'normal',
+        'high'
+    );
+}
+add_action('add_meta_boxes_page', 'kohler_add_showroom_meta_box');
+
+function kohler_render_showroom_meta_box($post) {
+    $definitions = kohler_showroom_field_definitions();
+    $current_section = '';
+
+    wp_nonce_field('kohler_save_showroom_fields', 'kohler_showroom_nonce');
+    echo '<p>ショールームページに表示する文字とリンク先を編集できます。未保存の項目には会社案内の文言が表示されます。</p>';
+
+    foreach ($definitions as $field_name => $definition) {
+        if ($current_section !== $definition['section']) {
+            if ('' !== $current_section) {
+                echo '</tbody></table>';
+            }
+            $current_section = $definition['section'];
+            echo '<h3 style="margin-top:24px;">' . esc_html($current_section) . '</h3>';
+            echo '<table class="form-table" role="presentation"><tbody>';
+        }
+
+        $input_id = 'kohler_showroom_' . $field_name;
+        $value = kohler_showroom_get_value($post->ID, $field_name);
+        echo '<tr><th scope="row"><label for="' . esc_attr($input_id) . '">' . esc_html($definition['label']) . '</label></th><td>';
+
+        if ('textarea' === $definition['type']) {
+            $rows = isset($definition['rows']) ? (int) $definition['rows'] : 3;
+            echo '<textarea class="large-text" rows="' . esc_attr($rows) . '" id="' . esc_attr($input_id) . '" name="kohler_showroom[' . esc_attr($field_name) . ']">' . esc_textarea($value) . '</textarea>';
+        } else {
+            echo '<input class="large-text" type="' . esc_attr($definition['type']) . '" id="' . esc_attr($input_id) . '" name="kohler_showroom[' . esc_attr($field_name) . ']" value="' . esc_attr($value) . '">';
+        }
+
+        if (!empty($definition['description'])) {
+            echo '<p class="description">' . esc_html($definition['description']) . '</p>';
+        }
+        echo '</td></tr>';
+    }
+
+    if ('' !== $current_section) {
+        echo '</tbody></table>';
+    }
+}
+
+function kohler_save_showroom_fields($post_id) {
+    if (
+        !isset($_POST['kohler_showroom_nonce']) ||
+        !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['kohler_showroom_nonce'])), 'kohler_save_showroom_fields') ||
+        (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) ||
+        wp_is_post_revision($post_id) ||
+        !current_user_can('edit_post', $post_id) ||
+        'page' !== get_post_type($post_id)
+    ) {
+        return;
+    }
+
+    $submitted = isset($_POST['kohler_showroom']) && is_array($_POST['kohler_showroom'])
+        ? wp_unslash($_POST['kohler_showroom'])
+        : [];
+
+    foreach (kohler_showroom_field_definitions() as $field_name => $definition) {
+        if (!array_key_exists($field_name, $submitted)) {
+            continue;
+        }
+
+        $value = 'url' === $definition['type']
+            ? esc_url_raw($submitted[$field_name])
+            : ('textarea' === $definition['type'] ? sanitize_textarea_field($submitted[$field_name]) : sanitize_text_field($submitted[$field_name]));
+
+        update_post_meta($post_id, '_kohler_showroom_' . $field_name, $value);
+    }
+}
+add_action('save_post_page', 'kohler_save_showroom_fields');
