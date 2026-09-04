@@ -248,6 +248,19 @@ $setting_page_id = $setting_page->ID;
 	</li>
 	<?php
 		foreach($header_menu as $menu) :
+			if ('施工事例' === trim($menu['header_menu_name'])) :
+	?>
+		<li class="menu-list__parent__list">
+			<a href="<?php echo esc_url(home_url('/showroom/')); ?>" class="menu-list__parent__link d-block py-3 py-lg-0">
+				<div class="d-flex align-items-center">
+					<div class="text-lg-center d-flex d-lg-block align-items-center">
+						<p class="letter-spacing-title d-block mb-0 fw-bolder me-3 me-lg-0">ショールーム</p>
+					</div>
+				</div>
+			</a>
+		</li>
+	<?php
+			endif;
 			if ($menu['header_menu_url']) {
 				$tag = 'a';
 			} else {
