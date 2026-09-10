@@ -1,0 +1,26 @@
+name: Environment head guard
+
+on:
+  push:
+    branches:
+      - main
+      - test
+  pull_request:
+    branches:
+      - main
+      - test
+
+jobs:
+  verify-environment-head:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify environment-specific Meta Pixel
+        env:
+          TARGET_BRANCH: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
+        run: |
+          if [ "$TARGET_BRANCH" = 'main' ]; then
+            ./scripts/verify-environment-head.sh production
+          else
+            ./scripts/verify-environment-head.sh test
+          fi
