@@ -3868,6 +3868,21 @@ body.catalogue-modal-open {
   text-underline-offset: 5px;
 }
 
+.catalogue-download-modal button.catalogue-download-modal__close:hover,
+.catalogue-download-modal button.catalogue-download-modal__close:focus,
+.catalogue-download-modal button.catalogue-download-modal__close:active,
+.catalogue-download-form button.catalogue-download-form__skip:hover,
+.catalogue-download-form button.catalogue-download-form__skip:focus,
+.catalogue-download-form button.catalogue-download-form__skip:active {
+  background: transparent;
+}
+
+.catalogue-download-form button.catalogue-download-form__skip:hover,
+.catalogue-download-form button.catalogue-download-form__skip:focus,
+.catalogue-download-form button.catalogue-download-form__skip:active {
+  color: #34474f;
+}
+
 .catalogue-download-modal button:focus-visible {
   outline: 2px solid #9a7a48;
   outline-offset: 3px;
