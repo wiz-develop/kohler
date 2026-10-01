@@ -285,6 +285,24 @@ function twentynineteen_scripts() {
 	if ( is_singular() && comments_open() && get_option( 'thread_comments' ) ) {
 		wp_enqueue_script( 'comment-reply' );
 	}
+
+	if ( is_page_template( 'page-catalogue.php' ) ) {
+		wp_enqueue_script(
+			'kohler-catalogue-download',
+			get_theme_file_uri( '/assets/js/catalogue-download.js' ),
+			array(),
+			filemtime( get_theme_file_path( '/assets/js/catalogue-download.js' ) ),
+			true
+		);
+		wp_localize_script(
+			'kohler-catalogue-download',
+			'kohlerCatalogueDownload',
+			array(
+				'ajaxUrl' => admin_url( 'admin-ajax.php' ),
+				'nonce'   => wp_create_nonce( 'kohler_catalogue_download' ),
+			)
+		);
+	}
 }
 add_action( 'wp_enqueue_scripts', 'twentynineteen_scripts' );
 
@@ -1404,3 +1422,232 @@ function kohler_save_showroom_fields($post_id) {
     }
 }
 add_action('save_post_page', 'kohler_save_showroom_fields');
+
+/**
+ * カタログダウンロード時のメールアドレス収集。
+ */
+function kohler_catalogue_download_table_name() {
+    global $wpdb;
+
+    return $wpdb->prefix . 'kohler_catalogue_downloads';
+}
+
+function kohler_install_catalogue_download_table() {
+    $database_version = '1.0.0';
+    if ($database_version === get_option('kohler_catalogue_download_db_version')) {
+        return;
+    }
+
+    global $wpdb;
+    $table_name = kohler_catalogue_download_table_name();
+    $charset_collate = $wpdb->get_charset_collate();
+
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta(
+        "CREATE TABLE {$table_name} (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            email varchar(254) NOT NULL,
+            catalogue_title varchar(255) NOT NULL,
+            catalogue_url text NOT NULL,
+            created_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            KEY created_at (created_at)
+        ) {$charset_collate};"
+    );
+
+    if ($table_name === $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table_name))) {
+        update_option('kohler_catalogue_download_db_version', $database_version);
+    }
+}
+add_action('init', 'kohler_install_catalogue_download_table');
+
+function kohler_save_catalogue_download_email() {
+    check_ajax_referer('kohler_catalogue_download', 'nonce');
+
+    if (!empty($_POST['website'])) {
+        wp_send_json_success();
+    }
+
+    $email = isset($_POST['email']) ? sanitize_email(wp_unslash($_POST['email'])) : '';
+    $catalogue_title = isset($_POST['catalogue_title']) ? sanitize_text_field(wp_unslash($_POST['catalogue_title'])) : '';
+    $catalogue_url = isset($_POST['catalogue_url']) ? esc_url_raw(wp_unslash($_POST['catalogue_url'])) : '';
+
+    if (!$email || !is_email($email)) {
+        wp_send_json_error(array('message' => 'メールアドレスを正しく入力してください。'), 400);
+    }
+
+    if (!$catalogue_title || !$catalogue_url) {
+        wp_send_json_error(array('message' => 'カタログ情報を確認できませんでした。'), 400);
+    }
+
+    global $wpdb;
+    $inserted = $wpdb->insert(
+        kohler_catalogue_download_table_name(),
+        array(
+            'email'           => $email,
+            'catalogue_title' => $catalogue_title,
+            'catalogue_url'   => $catalogue_url,
+            'created_at'      => current_time('mysql'),
+        ),
+        array('%s', '%s', '%s', '%s')
+    );
+
+    if (false === $inserted) {
+        wp_send_json_error(array('message' => '送信できませんでした。時間をおいて再度お試しください。'), 500);
+    }
+
+    wp_send_json_success();
+}
+add_action('wp_ajax_kohler_save_catalogue_download_email', 'kohler_save_catalogue_download_email');
+add_action('wp_ajax_nopriv_kohler_save_catalogue_download_email', 'kohler_save_catalogue_download_email');
+
+function kohler_add_catalogue_download_admin_page() {
+    add_management_page(
+        'カタログDLメール',
+        'カタログDLメール',
+        'manage_options',
+        'kohler-catalogue-downloads',
+        'kohler_render_catalogue_download_admin_page'
+    );
+}
+add_action('admin_menu', 'kohler_add_catalogue_download_admin_page');
+
+function kohler_catalogue_download_date_value($value, $fallback) {
+    $value = sanitize_text_field(wp_unslash($value));
+
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $date_parts)) {
+        return $fallback;
+    }
+
+    return checkdate((int) $date_parts[2], (int) $date_parts[3], (int) $date_parts[1]) ? $value : $fallback;
+}
+
+function kohler_render_catalogue_download_admin_page() {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+
+    global $wpdb;
+    $table_name = kohler_catalogue_download_table_name();
+    $today = current_time('Y-m-d');
+    $default_start = current_datetime()->modify('-1 month')->format('Y-m-d');
+    $start_date = isset($_GET['start_date']) ? kohler_catalogue_download_date_value($_GET['start_date'], $default_start) : $default_start;
+    $end_date = isset($_GET['end_date']) ? kohler_catalogue_download_date_value($_GET['end_date'], $today) : $today;
+    if ($start_date > $end_date) {
+        list($start_date, $end_date) = array($end_date, $start_date);
+    }
+    $rows = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT email, catalogue_title, catalogue_url, created_at
+            FROM {$table_name}
+            WHERE created_at BETWEEN %s AND %s
+            ORDER BY created_at DESC
+            LIMIT 100",
+            $start_date . ' 00:00:00',
+            $end_date . ' 23:59:59'
+        )
+    );
+    $count = (int) $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$table_name} WHERE created_at BETWEEN %s AND %s",
+            $start_date . ' 00:00:00',
+            $end_date . ' 23:59:59'
+        )
+    );
+    ?>
+    <div class="wrap">
+        <h1>カタログDLメール</h1>
+        <p>カタログダウンロード時に入力されたメールアドレスを期間指定でCSV出力できます。</p>
+        <form method="get" action="<?php echo esc_url(admin_url('tools.php')); ?>" style="display:flex;align-items:end;gap:12px;margin:24px 0;">
+            <input type="hidden" name="page" value="kohler-catalogue-downloads">
+            <label>開始日<br><input type="date" name="start_date" value="<?php echo esc_attr($start_date); ?>" required></label>
+            <label>終了日<br><input type="date" name="end_date" value="<?php echo esc_attr($end_date); ?>" required></label>
+            <?php submit_button('表示', 'secondary', '', false); ?>
+        </form>
+        <p><strong><?php echo esc_html(number_format_i18n($count)); ?>件</strong>（<?php echo esc_html($start_date); ?> 〜 <?php echo esc_html($end_date); ?>）</p>
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="margin:16px 0 24px;">
+            <input type="hidden" name="action" value="kohler_export_catalogue_downloads">
+            <input type="hidden" name="start_date" value="<?php echo esc_attr($start_date); ?>">
+            <input type="hidden" name="end_date" value="<?php echo esc_attr($end_date); ?>">
+            <?php wp_nonce_field('kohler_export_catalogue_downloads'); ?>
+            <?php submit_button('CSVをダウンロード', 'primary', '', false, $count ? array() : array('disabled' => 'disabled')); ?>
+        </form>
+        <table class="widefat striped">
+            <thead><tr><th>登録日時</th><th>メールアドレス</th><th>カタログ名</th><th>URL</th></tr></thead>
+            <tbody>
+            <?php if ($rows) : ?>
+                <?php foreach ($rows as $row) : ?>
+                    <tr>
+                        <td><?php echo esc_html($row->created_at); ?></td>
+                        <td><?php echo esc_html($row->email); ?></td>
+                        <td><?php echo esc_html($row->catalogue_title); ?></td>
+                        <td><a href="<?php echo esc_url($row->catalogue_url); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html($row->catalogue_url); ?></a></td>
+                    </tr>
+                <?php endforeach; ?>
+            <?php else : ?>
+                <tr><td colspan="4">指定期間のデータはありません。</td></tr>
+            <?php endif; ?>
+            </tbody>
+        </table>
+        <?php if ($count > 100) : ?><p>画面には最新100件を表示しています。CSVには指定期間の全件が含まれます。</p><?php endif; ?>
+    </div>
+    <?php
+}
+
+function kohler_catalogue_csv_value($value) {
+    $value = (string) $value;
+
+    return preg_match('/^[=+\-@]/', $value) ? "'" . $value : $value;
+}
+
+function kohler_export_catalogue_downloads() {
+    if (!current_user_can('manage_options')) {
+        wp_die('この操作を実行する権限がありません。');
+    }
+
+    check_admin_referer('kohler_export_catalogue_downloads');
+    $today = current_time('Y-m-d');
+    $start_date = isset($_POST['start_date']) ? kohler_catalogue_download_date_value($_POST['start_date'], $today) : $today;
+    $end_date = isset($_POST['end_date']) ? kohler_catalogue_download_date_value($_POST['end_date'], $today) : $today;
+    if ($start_date > $end_date) {
+        list($start_date, $end_date) = array($end_date, $start_date);
+    }
+
+    global $wpdb;
+    $table_name = kohler_catalogue_download_table_name();
+    $rows = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT email, catalogue_title, catalogue_url, created_at
+            FROM {$table_name}
+            WHERE created_at BETWEEN %s AND %s
+            ORDER BY created_at ASC",
+            $start_date . ' 00:00:00',
+            $end_date . ' 23:59:59'
+        ),
+        ARRAY_A
+    );
+
+    nocache_headers();
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="catalogue-downloads-' . $start_date . '-' . $end_date . '.csv"');
+    $output = fopen('php://output', 'w');
+    fwrite($output, "\xEF\xBB\xBF");
+    fputcsv($output, array('登録日時', 'メールアドレス', 'カタログ名', 'URL'), ',', '"', '');
+
+    foreach ($rows as $row) {
+        fputcsv(
+            $output,
+            array_map(
+                'kohler_catalogue_csv_value',
+                array($row['created_at'], $row['email'], $row['catalogue_title'], $row['catalogue_url'])
+            ),
+            ',',
+            '"',
+            ''
+        );
+    }
+
+    fclose($output);
+    exit;
+}
+add_action('admin_post_kohler_export_catalogue_downloads', 'kohler_export_catalogue_downloads');
