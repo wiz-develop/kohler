@@ -1502,12 +1502,14 @@ add_action('wp_ajax_kohler_save_catalogue_download_email', 'kohler_save_catalogu
 add_action('wp_ajax_nopriv_kohler_save_catalogue_download_email', 'kohler_save_catalogue_download_email');
 
 function kohler_add_catalogue_download_admin_page() {
-    add_management_page(
+    add_menu_page(
         'カタログDLメール',
         'カタログDLメール',
         'manage_options',
         'kohler-catalogue-downloads',
-        'kohler_render_catalogue_download_admin_page'
+        'kohler_render_catalogue_download_admin_page',
+        'dashicons-email-alt2',
+        26
     );
 }
 add_action('admin_menu', 'kohler_add_catalogue_download_admin_page');
@@ -1558,7 +1560,7 @@ function kohler_render_catalogue_download_admin_page() {
     <div class="wrap">
         <h1>カタログDLメール</h1>
         <p>カタログダウンロード時に入力されたメールアドレスを期間指定でCSV出力できます。</p>
-        <form method="get" action="<?php echo esc_url(admin_url('tools.php')); ?>" style="display:flex;align-items:end;gap:12px;margin:24px 0;">
+        <form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>" style="display:flex;align-items:end;gap:12px;margin:24px 0;">
             <input type="hidden" name="page" value="kohler-catalogue-downloads">
             <label>開始日<br><input type="date" name="start_date" value="<?php echo esc_attr($start_date); ?>" required></label>
             <label>終了日<br><input type="date" name="end_date" value="<?php echo esc_attr($end_date); ?>" required></label>
