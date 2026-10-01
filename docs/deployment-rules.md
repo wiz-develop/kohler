@@ -2,8 +2,13 @@
 
 ## ブランチと環境
 
-- `test`: テスト環境。Meta Pixel を入れない。
-- `main`: 本番環境。`header.php` の本番専用 Meta Pixel（ID: `1044493571917966`）を必ず保持する。
+- `test`: テスト環境 `https://kohler2024re.xsrv.jp/`。Meta Pixel を入れない。
+- `main`: 本番環境 `https://kohler.jp/`。`header.php` の本番専用 Meta Pixel（ID: `1044493571917966`）を必ず保持する。
+
+カタログページの確認先は以下とする。
+
+- テスト: `https://kohler2024re.xsrv.jp/product-catalogue/`
+- 本番: `https://kohler.jp/product-catalogue/`
 
 ## 本番反映
 
